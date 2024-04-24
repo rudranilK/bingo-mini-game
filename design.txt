@@ -1,0 +1,76 @@
+High-Level Design (HLD):
+- User Interface (UI):
+    • Display a 5x5 grid with indices (0,0) - (4,4) [ x, y positions], with the index (2,2) being empty.
+    • User cn create a game, and the server responds with a gameId and a color assigned to that user.
+    • Multiple players can join the game by the gameId.
+    • Each cell in the grid represents a bingo number.
+    • Display a "Start" button to start the game.
+    • When clicking on a bingo number, that cell is colored with the color assigned to the player.
+
+- Game Logic:
+    • Generate a list of 24 unique random numbers between 1 and 99 for the grid.
+    • When t first the "BINGO" button is clicked:
+    • Display a number randomly picked from the 24 no's in step 1.
+    • When the game board displays a bingo no, users have to mark off numbers on from the grid manually.
+    • On every move made by the player, the server responds with a new number from the array of 24 no's in step 1.
+    • After every move that the player makes, check if any player has achieved a bingo (horizontal, vertical, or diagonal line of marked numbers).
+    • If a player has achieved a bingo, declare them as the winner.
+    
+- Winning Condition:
+    • Check the grid after each number is generated, and the player clicks on a number to determine if any player has achieved a bingo.
+    • User Interaction:
+    • Users can click the "BINGO" button to progress the game.
+
+Game state will be saved at server side to maintain the data.
+
+Low-Level Design (HLD):
+    
+    1. player 1 creates a game -> 
+        • A new gameId is created, server responds to the client with gameID.
+    2. player 1 joins the game ->
+        • 24 no's are generated in the range of 1 - 99. No's are stored in a global array associated with the game, 
+            every player that joins this gameID will get these same numbers.
+        • For each player, the game state is saved individually.
+        • Next, the output of designBoard() is sent to client as the game state
+
+        • function designBoard(){ 
+
+            • No's are sorted then pushed into 5 different arrays of sizes 5,5,4,5,5. 
+            • next these array's are shuffled to generate a randomness of the numbers.
+            • 2 hashmaps to store the grid values.
+
+            • const bingoNumbers = {
+              // Structure: {number: {x: xCoordinate, y: yCoordinate, marked: false}}
+                1: { x: 0, y: 0, marked: false },
+                2: { x: 0, y: 1, marked: false },
+              // ... and so on for all numbers
+            }
+            • here, key denotes an index position, vlues are x,y locations on grid and mrked status.
+
+            • const mpping = {
+              // Structure: { bingo number: index position of bingoNumbers map }
+                5: 1,
+                56: 2
+              // ... and so on for all numbers
+            }
+            • These maps will hold the state for the game
+        }
+        • client clicks on the bingo button to start the game - an event is sent to the server
+        • Server picks out 1 no from global array of bingo numbers - randomly
+        • clint displays the number received from the server as the bingo number
+        • player 1 clicks on a number and aagin that is sent to the server
+        • Now, server checks whether thst no is the current bingo number or not, if yes, from the 'mapping' map
+            it first finds the index position then from 'bingoNumbers' map it finds the x, y position and marks it as marked
+        • Next, server checks the entire row by the x value, checks the entire value by the y value and the diagonal positions to check if they are marked,
+            if any of these are marked, server responds as the winner. CLient then stops the game.
+
+- Events
+
+    CRETE_GAME - to crete a new game - ACK { clientId, tableId, color }
+    JOIN_GAME - to join a game room  - ACK { gameBoard, players }
+    START_GAME - to start a game ( optional ) - ACK { success }
+    BINGO_NUMBER - brodcast from server - all clients in the room - STR
+    NUMBER_SELECTED - client sends to server - ACK { success } - [send bingo positions]
+    GAME_END - broadcast from server { point table } 
+
+    

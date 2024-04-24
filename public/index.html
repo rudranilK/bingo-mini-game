@@ -1,0 +1,45 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h1>This is the Bingo Game</h1>
+    <h2>Another header</h2>
+
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>Mini Bingo</title>
+    <link rel="stylesheet" href="./css/styles.css" />
+  </head>
+  <body>
+    <div class="centered-form">
+      <div class="centered-form__box">
+        <h1>Welcome to Bingo!</h1>
+        <form action="./chat.html">
+          <label>Display Name</label>
+          <input
+            type="text"
+            name="username"
+            placeholder="Display Name"
+            required
+          />
+          <h3>Select between 1 or 2</h3>
+          <button>1. Create Game</button>
+          <input type="text" name="room" placeholder="Game ID" required />
+          <button>2. Join Game</button>
+        </form>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="./js/game.js"></script>
+  </body>
+</html>

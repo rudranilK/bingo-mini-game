@@ -1,0 +1,46 @@
+/* styles.css */
+.centered-form {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+.centered-form__box {
+  border: 2px solid black;
+  padding: 20px;
+  width: 400px; /* Adjust the width as needed */
+  max-width: 80%; /* Limit the maximum width to 80% of the viewport width */
+  font-family: Arial, sans-serif; /* Change the font family */
+}
+
+.centered-form__box h1 {
+  font-size: 24px; /* Increase the font size for the heading */
+  margin-bottom: 20px; /* Add some space below the heading */
+  text-align: center; /* Center-align the heading */
+}
+
+.centered-form__box h3 {
+  font-size: 18px; /* Increase the font size for the subheading */
+  margin-bottom: 10px; /* Add some space below the subheading */
+  text-align: center; /* Center-align the subheading */
+}
+
+.centered-form__box label {
+  display: block;
+  margin-bottom: 10px; /* Add some space between each label and input */
+  text-align: center; /* Center-align the labels */
+}
+
+.centered-form__box input[type="text"],
+.centered-form__box button {
+  width: calc(100% - 40px); /* Subtract the padding from the width */
+  margin-bottom: 20px; /* Add some space between each input and button */
+  padding: 12px 20px; /* Add padding to inputs and buttons */
+  font-size: 16px; /* Adjust the font size for inputs and buttons */
+  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+
+.centered-form__box button:first-child {
+  margin-bottom: 15px; /* Add margin between the h3 and the button */
+}
