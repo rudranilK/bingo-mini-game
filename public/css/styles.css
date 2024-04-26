@@ -44,3 +44,19 @@
 .centered-form__box button:first-child {
   margin-bottom: 15px; /* Add margin between the h3 and the button */
 }
+
+/* Update grid-template-columns to define rows first */
+.grid-container {
+  display: grid;
+  grid-template-rows: repeat(5, 1fr); /* Define rows first */
+  grid-template-columns: repeat(5, 1fr); /* Then define columns */
+  gap: 10px;
+}
+
+.grid-item {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid black; /* Border for each grid item */
+  font-size: 16px;
+  text-align: center; /* Center-align text */
+}

@@ -66,7 +66,7 @@ Low-Level Design (HLD):
 
 - Events
 
-    CRETE_GAME - to crete a new game - ACK { clientId, tableId, color }
+    CREATE_GAME - to crete a new game - ACK { clientId, tableId, color }
     JOIN_GAME - to join a game room  - ACK { gameBoard, players }
     START_GAME - to start a game ( optional ) - ACK { success }
     BINGO_NUMBER - brodcast from server - all clients in the room - STR
