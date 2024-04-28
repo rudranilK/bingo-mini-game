@@ -1,7 +1,7 @@
 const socket = io();
 let clientId = null;
 let gameId = null;
-let charSelected = null;
+let gameBoard = null;
 let userColor = null;
 
 socket.on("CONNECTION_ACK", (data) => {
@@ -14,6 +14,9 @@ socket.on("BINGO_NUMBER", (data) => {
 
   const bingoNumberDisplay = document.getElementById("bingoNumberDisplay");
   bingoNumberDisplay.textContent = parseInt(bingoNumber);
+
+  // enabling buttons for user to select bingo no
+  enableButtons();
 });
 
 // Emit event when user submits the form
@@ -31,9 +34,10 @@ function performAction(username, gamename) {
         } else {
           console.info(`data, ${JSON.stringify(data, null, 2)}`);
           const { clientDetails, gameData } = data;
-          const { gameBoard, gameId: id, userColor: color } = gameData;
+          const { gameBoard: board, gameId: id, userColor: color } = gameData;
           gameId = id;
           userColor = color;
+          gameBoard = board;
 
           displayGrid(gameBoard);
         }
@@ -49,9 +53,10 @@ function performAction(username, gamename) {
       } else {
         console.info(`data, ${JSON.stringify(data, null, 2)}`);
         const { clientDetails, gameData } = data;
-        const { gameBoard, gameId: id, userColor: color } = gameData;
+        const { gameBoard: board, gameId: id, userColor: color } = gameData;
         gameId = id;
         userColor = color;
+        gameBoard = board;
 
         displayGrid(gameBoard);
       }
@@ -103,7 +108,9 @@ function displayGrid(data) {
 
       const button = document.createElement("button");
       button.className = "grid-item"; // Apply the grid-item class
-      button.textContent = data[index] || ""; // Set the button text
+      button.id = `button-${index}`;
+      button.disabled = true;
+      button.textContent = parseInt(data[index]) || ""; // Set the button text
       if (index === 12) {
         button.disabled = true;
         button.textContent = "X";
@@ -118,14 +125,16 @@ function displayGrid(data) {
           // Emit an event to the server with the button text content
           const buttonText = button.textContent.trim(); // Get the text content of the button
 
-          socket.emit("NUMBER_SELECTED", { buttonText }, (err) => {
-            if (err) alert(err);
-            else {
-              // Wait for acknowledgment from the server
+          socket.emit("NUMBER_SELECTED", { buttonText }, (err, data) => {
+            // Wait for acknowledgment from the server
+            if (err) {
+              return alert(err);
+            }
+
+            const { success } = data;
+            if (success) {
               // Change background color of the button
               button.style.backgroundColor = userColor;
-              //   enabling buttons
-              enableButtons();
             }
           });
         });

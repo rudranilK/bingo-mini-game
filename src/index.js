@@ -7,8 +7,8 @@ import { Server } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import { insertData, getHashData } from "./utils/db.js";
 
-//TODO
 const colors = ["green", "blue"];
+let currentBingoNo = null;
 
 const app = express();
 const server = createServer(app);
@@ -53,6 +53,14 @@ io.on("connection", async (socket) => {
     }
     console.log(`New Game created`);
 
+    //* Store gameboard for this user in Redis
+    if (gameRes.gameId && gameRes.gameBoard) {
+      await insertData(
+        `${gameRes.gameId}-${clientId}-board`,
+        gameRes.gameBoard
+      );
+    }
+
     callback({
       data: {
         clientDetails: res.clientDetails,
@@ -75,6 +83,14 @@ io.on("connection", async (socket) => {
       return callback(gameRes);
     }
 
+    //* Store gameboard for this user in Redis
+    if (gameRes.gameId && gameRes.gameBoard) {
+      await insertData(
+        `${gameRes.gameId}-${clientId}-board`,
+        gameRes.gameBoard
+      );
+    }
+
     callback({
       data: {
         clientDetails: res.clientDetails,
@@ -83,25 +99,33 @@ io.on("connection", async (socket) => {
     });
 
     //Check to see if game can be started > broadcast bingoNo
-    const bingoNo = await updateGameStarted(gameId);
-    if (bingoNo) {
+    currentBingoNo = await updateGameStarted(gameId);
+    if (currentBingoNo) {
       io.to(gameId).emit("BINGO_NUMBER", {
-        bingoNumber: bingoNo,
+        bingoNumber: currentBingoNo,
       });
 
       //TODO: Start the cron here
+      setTimeout(() => {
+        sendBingo(io, gameId);
+      }, 3000);
     }
   });
 
-  socket.on("NUMBER_SELECTED", async (data, callabck) => {
+  socket.on("NUMBER_SELECTED", async (data, callback) => {
     const { buttonText: number } = data;
     console.log(`No selected by user : ${number}`);
 
-    //check if no is part of board or not
+    //TODO: check if no is part of board or not
+    if (parseInt(buttonText) === currentBingoNo) {
+      callback({
+        success: "No is bingo no",
+      });
+    }
 
-    // check for row, col, digonals for bingo
+    //TODO: check for row, col, digonals for bingo
 
-    callabck();
+    callback();
   });
 
   socket.on("disconnect", async () => {
@@ -266,4 +290,20 @@ function designGameBoard() {
   }
 
   return gameBoard;
+}
+
+function sendBingo(io, gameId) {
+  currentBingoNo = getRandomInt(1, 100);
+  console.log("sending new bingoNo..", bingoNo);
+  io.to(gameId).emit("BINGO_NUMBER", {
+    bingoNumber: currentBingoNo,
+  });
+
+  setTimeout(() => {
+    sendBingo(io, gameId);
+  }, 3000);
+}
+
+function testSpecific(gameId) {
+  const boards = [];
 }
