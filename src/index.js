@@ -140,7 +140,7 @@ io.on("connection", async (socket) => {
     //Check to see if game can be started > broadcast bingoNo
     const bingoNo = await updateGameStatus(gameId);
     if (bingoNo) {
-      io.to(gameId).emit("ç", {
+      io.to(gameId).emit("BINGO_NUMBER", {
         bingoNumber: bingoNo,
       });
 
@@ -281,6 +281,7 @@ async function updateGameStatus(gameId) {
     const bingoNo = getRandomInt(1, 100);
 
     const games = (await getHashData("games")) || {};
+    gameDetails.state = "ONGOING";
     games[gameId] = JSON.stringify(gameDetails);
 
     await insertData("games", games);

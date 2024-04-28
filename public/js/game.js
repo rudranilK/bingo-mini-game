@@ -11,6 +11,9 @@ socket.on("CONNECTION_ACK", (data) => {
 
 socket.on("BINGO_NUMBER", (data) => {
   const { bingoNumber } = data;
+
+  const bingoNumberDisplay = document.getElementById("bingoNumberDisplay");
+  bingoNumberDisplay.textContent = bingoNumber;
 });
 
 // Emit event when user submits the form
