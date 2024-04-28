@@ -125,9 +125,10 @@ function displayGrid(data) {
           // Emit an event to the server with the button text content
           const buttonText = button.textContent.trim(); // Get the text content of the button
 
-          socket.emit("NUMBER_SELECTED", { buttonText }, (err, data) => {
+          socket.emit("NUMBER_SELECTED", { buttonText }, ({ err, data }) => {
             // Wait for acknowledgment from the server
             if (err) {
+              console.log(JSON.stringify(err, null, 2));
               return alert(err);
             }
 

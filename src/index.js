@@ -7,6 +7,65 @@ import { Server } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import { insertData, getHashData } from "./utils/db.js";
 
+//! Temporry
+const gameboards = [
+  {
+    0: 14,
+    1: 6,
+    2: 3,
+    3: 19,
+    4: 17,
+    5: 30,
+    6: 21,
+    7: 25,
+    8: 35,
+    9: 40,
+    10: 55,
+    11: 43,
+    12: 58,
+    13: 59,
+    14: 54,
+    15: 78,
+    16: 82,
+    17: 75,
+    18: 64,
+    19: 61,
+    20: 89,
+    21: 98,
+    22: 91,
+    23: 99,
+    24: 83,
+  },
+  {
+    0: 5,
+    1: 19,
+    2: 12,
+    3: 4,
+    4: 18,
+    5: 22,
+    6: 33,
+    7: 25,
+    8: 36,
+    9: 38,
+    10: 46,
+    11: 51,
+    12: 55,
+    13: 60,
+    14: 53,
+    15: 74,
+    16: 76,
+    17: 68,
+    18: 64,
+    19: 72,
+    20: 81,
+    21: 94,
+    22: 98,
+    23: 91,
+    24: 87,
+  },
+];
+//! remove after testing
+
 const colors = ["green", "blue"];
 let currentBingoNo = null;
 
@@ -51,7 +110,6 @@ io.on("connection", async (socket) => {
     if (gameRes.err) {
       return callback(gameRes);
     }
-    console.log(`New Game created`);
 
     //* Store gameboard for this user in Redis
     if (gameRes.gameId && gameRes.gameBoard) {
@@ -60,6 +118,8 @@ io.on("connection", async (socket) => {
         gameRes.gameBoard
       );
     }
+
+    console.log(`A user created game ${gameRes.gameId}`);
 
     callback({
       data: {
@@ -91,6 +151,8 @@ io.on("connection", async (socket) => {
       );
     }
 
+    console.log(`A user joined game ${gameId}`);
+
     callback({
       data: {
         clientDetails: res.clientDetails,
@@ -108,29 +170,29 @@ io.on("connection", async (socket) => {
       //TODO: Start the cron here
       setTimeout(() => {
         sendBingo(io, gameId);
-      }, 3000);
+      }, 6000);
     }
   });
 
   socket.on("NUMBER_SELECTED", async (data, callback) => {
-    const { buttonText: number } = data;
+    const { buttonText: number, clientId, gameId } = data;
     console.log(`No selected by user : ${number}`);
 
     //TODO: check if no is part of board or not
-    if (parseInt(buttonText) === currentBingoNo) {
+    if (parseInt(number) === currentBingoNo) {
       callback({
-        success: "No is bingo no",
+        data: {
+          success: "No is bingo no",
+        },
       });
     }
 
     //TODO: check for row, col, digonals for bingo
 
-    callback();
+    // callback();  //! Enable this after testing
   });
 
   socket.on("disconnect", async () => {
-    // const con = await getData("connectionId");
-    // await deleteData("connectionId");
     console.log(`user disconnected with id : ${socket.id}`);
   });
 });
@@ -165,31 +227,14 @@ async function createGame(socket, clientId) {
     return {
       gameId,
       userColor,
-      gameBoard: designGameBoard(),
+      // gameBoard: designGameBoard(),  //* Uncomment this
+      gameBoard: gameboards[0], //! Remove this after testing
     };
   } catch (error) {
     return {
       err: error.message || `500: Some unexpected error`,
     };
   }
-}
-
-async function updateUserName(clientId, username) {
-  const rawData = await getHashData("clients", clientId);
-  const clientDetails = rawData ? JSON.parse(rawData) : null;
-  if (!clientDetails) {
-    return {
-      err: "Invlid clientId",
-    };
-  }
-
-  const clients = (await getHashData("clients")) || {};
-
-  clientDetails.username = username;
-  clients[clientId] = JSON.stringify(clientDetails);
-
-  await insertData("clients", clients);
-  return { clientDetails };
 }
 
 async function joinGame(socket, clientId, gameId) {
@@ -237,8 +282,27 @@ async function joinGame(socket, clientId, gameId) {
   return {
     gameId,
     userColor,
-    gameBoard: designGameBoard(),
+    // gameBoard: designGameBoard(), //* Uncomment this
+    gameBoard: gameboards[1], //! Remove this after testing
   };
+}
+
+async function updateUserName(clientId, username) {
+  const rawData = await getHashData("clients", clientId);
+  const clientDetails = rawData ? JSON.parse(rawData) : null;
+  if (!clientDetails) {
+    return {
+      err: "Invlid clientId",
+    };
+  }
+
+  const clients = (await getHashData("clients")) || {};
+
+  clientDetails.username = username;
+  clients[clientId] = JSON.stringify(clientDetails);
+
+  await insertData("clients", clients);
+  return { clientDetails };
 }
 
 async function updateGameStarted(gameId) {
@@ -246,8 +310,9 @@ async function updateGameStarted(gameId) {
   const gameDetails = JSON.parse(rawData);
 
   if (gameDetails.clients.length === 2 && gameDetails.state === "CREATED") {
-    // send a random Bingo number to client -> start the cron
-    const bingoNo = getRandomInt(1, 100);
+    // send a random Bingo number to client
+    // const bingoNo = getRandomInt(1, 100);  //* Uncomment this
+    const bingoNo = testSpecific(); //! Remove this after testing
 
     const games = (await getHashData("games")) || {};
     gameDetails.state = "ONGOING";
@@ -293,17 +358,26 @@ function designGameBoard() {
 }
 
 function sendBingo(io, gameId) {
-  currentBingoNo = getRandomInt(1, 100);
-  console.log("sending new bingoNo..", bingoNo);
+  // currentBingoNo = getRandomInt(1, 100); //* Uncomment this
+
+  currentBingoNo = testSpecific(); //! Remove after testing
+
+  console.log("sending new bingoNo..", currentBingoNo);
   io.to(gameId).emit("BINGO_NUMBER", {
     bingoNumber: currentBingoNo,
   });
 
   setTimeout(() => {
     sendBingo(io, gameId);
-  }, 3000);
+  }, 6000);
 }
 
-function testSpecific(gameId) {
-  const boards = [];
+function testSpecific() {
+  const values = [
+    ...Object.values(gameboards[0]),
+    ...Object.values(gameboards[1]),
+  ];
+
+  const position = getRandomInt(0, values.length - 1);
+  return values[position];
 }
