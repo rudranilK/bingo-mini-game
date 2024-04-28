@@ -7,62 +7,7 @@ import { Server } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import { insertData, getHashData } from "./utils/db.js";
 
-const gameBoards = [
-  {
-    0: 14,
-    1: 6,
-    2: 3,
-    3: 19,
-    4: 17,
-    5: 30,
-    6: 21,
-    7: 25,
-    8: 35,
-    9: 40,
-    10: 55,
-    11: 43,
-    12: null,
-    13: 59,
-    14: 54,
-    15: 78,
-    16: 82,
-    17: 75,
-    18: 64,
-    19: 61,
-    20: 89,
-    21: 98,
-    22: 91,
-    23: 99,
-    24: 83,
-  },
-  {
-    0: 5,
-    1: 19,
-    2: 12,
-    3: 4,
-    4: 18,
-    5: 22,
-    6: 33,
-    7: 25,
-    8: 36,
-    9: 38,
-    10: 46,
-    11: 51,
-    12: null,
-    13: 60,
-    14: 53,
-    15: 74,
-    16: 76,
-    17: 68,
-    18: 64,
-    19: 72,
-    20: 81,
-    21: 94,
-    22: 98,
-    23: 91,
-    24: 87,
-  },
-];
+//TODO
 const colors = ["green", "blue"];
 
 const app = express();
@@ -138,13 +83,13 @@ io.on("connection", async (socket) => {
     });
 
     //Check to see if game can be started > broadcast bingoNo
-    const bingoNo = await updateGameStatus(gameId);
+    const bingoNo = await updateGameStarted(gameId);
     if (bingoNo) {
       io.to(gameId).emit("BINGO_NUMBER", {
         bingoNumber: bingoNo,
       });
 
-      //Start the cron here
+      //TODO: Start the cron here
     }
   });
 
@@ -196,7 +141,7 @@ async function createGame(socket, clientId) {
     return {
       gameId,
       userColor,
-      gameBoard: gameBoards[0],
+      gameBoard: designGameBoard(),
     };
   } catch (error) {
     return {
@@ -268,16 +213,16 @@ async function joinGame(socket, clientId, gameId) {
   return {
     gameId,
     userColor,
-    gameBoard: gameBoards[1],
+    gameBoard: designGameBoard(),
   };
 }
 
-async function updateGameStatus(gameId) {
+async function updateGameStarted(gameId) {
   const rawData = await getHashData("games", gameId);
   const gameDetails = JSON.parse(rawData);
 
   if (gameDetails.clients.length === 2 && gameDetails.state === "CREATED") {
-    // send a random number to client -> start the cron
+    // send a random Bingo number to client -> start the cron
     const bingoNo = getRandomInt(1, 100);
 
     const games = (await getHashData("games")) || {};
@@ -294,4 +239,31 @@ async function updateGameStatus(gameId) {
 
 function getRandomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function designGameBoard() {
+  let begin = 0;
+  let range = 20;
+  let end = begin + range;
+  let startIndex = 0;
+  const gameBoard = {};
+
+  for (let i = 0; i < 5; i++) {
+    let numbers = 5;
+
+    while (numbers > 0) {
+      const randomNo = getRandomInt(begin, end);
+      if (startIndex === 12) {
+        gameBoard[startIndex++] = null;
+      } else {
+        gameBoard[startIndex++] = randomNo;
+      }
+      numbers--;
+    }
+
+    begin = end;
+    end += range;
+  }
+
+  return gameBoard;
 }
