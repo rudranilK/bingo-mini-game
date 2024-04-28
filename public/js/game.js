@@ -2,10 +2,15 @@ const socket = io();
 let clientId = null;
 let gameId = null;
 let charSelected = null;
+let userColor = null;
 
 socket.on("CONNECTION_ACK", (data) => {
   const { clientId: client } = JSON.parse(data);
   clientId = client;
+});
+
+socket.on("BINGO_NUMBER", (data) => {
+  const { bingoNumber } = data;
 });
 
 // Emit event when user submits the form
@@ -23,8 +28,10 @@ function performAction(username, gamename) {
         } else {
           console.info(`data, ${JSON.stringify(data, null, 2)}`);
           const { clientDetails, gameData } = data;
-          const { gameBoard, gameId: id } = gameData;
+          const { gameBoard, gameId: id, userColor: color } = gameData;
           gameId = id;
+          userColor = color;
+
           displayGrid(gameBoard);
         }
       }
@@ -39,8 +46,10 @@ function performAction(username, gamename) {
       } else {
         console.info(`data, ${JSON.stringify(data, null, 2)}`);
         const { clientDetails, gameData } = data;
-        const { gameBoard, gameId: id } = gameData;
+        const { gameBoard, gameId: id, userColor: color } = gameData;
         gameId = id;
+        userColor = color;
+
         displayGrid(gameBoard);
       }
     });
@@ -52,10 +61,36 @@ function displayGrid(data) {
   const landingPage = document.getElementById("landingPage");
   landingPage.innerHTML = "";
 
+  // Create the container for number display and grid
+  const container = document.createElement("div");
+  container.classList.add("container");
+
+  // Create container for bingo number display and center it
+  const numberDisplayContainer = document.createElement("div");
+  numberDisplayContainer.className = "number-display-container"; // Add CSS class
+  numberDisplayContainer.style.textAlign = "center";
+  container.appendChild(numberDisplayContainer);
+
+  // Create the label and display area for bingo number
+  const bingoLabel = document.createElement("label");
+  bingoLabel.textContent = "Current Bingo Number:";
+  bingoLabel.setAttribute("for", "bingoNumber");
+  numberDisplayContainer.appendChild(bingoLabel);
+
+  const bingoNumberDisplay = document.createElement("div");
+  bingoNumberDisplay.id = "bingoNumberDisplay";
+  numberDisplayContainer.appendChild(bingoNumberDisplay);
+
+  // Set the bingo number display initially
+  bingoNumberDisplay.textContent = "Bingo";
+
   // Create the grid container
   const gridContainer = document.createElement("div");
   gridContainer.className = "centered-form__box grid-container";
-  landingPage.appendChild(gridContainer);
+  container.appendChild(gridContainer);
+
+  // Append the container to the landing page
+  landingPage.appendChild(container);
 
   for (let col = 0; col < 5; col++) {
     // Iterate over columns first
@@ -79,11 +114,16 @@ function displayGrid(data) {
 
           // Emit an event to the server with the button text content
           const buttonText = button.textContent.trim(); // Get the text content of the button
-          socket.emit("NUMBER_SELECTED", { buttonText });
 
-          // Wait for acknowledgment from the server before enabling buttons
-          socket.on("ACKNOWLEDGMENT", () => {
-            enableButtons();
+          socket.emit("NUMBER_SELECTED", { buttonText }, (err) => {
+            if (err) alert(err);
+            else {
+              // Wait for acknowledgment from the server
+              // Change background color of the button
+              button.style.backgroundColor = userColor;
+              //   enabling buttons
+              enableButtons();
+            }
           });
         });
       }
@@ -108,8 +148,8 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       if (!gamename) {
         alert(`Game Id has to be provided`);
-        location.href = "/"; // Re-route to index.html - so performction() is not executed
         console.error(`Game Id not provided`);
+        location.href = "/"; // Re-route to index.html - so performAßction() is not executed
       }
       performAction(username, gamename);
     }

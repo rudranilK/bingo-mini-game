@@ -63,6 +63,7 @@ const gameBoards = [
     24: 87,
   },
 ];
+const colors = ["green", "blue"];
 
 const app = express();
 const server = createServer(app);
@@ -73,7 +74,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 app.use(express.static(join(__dirname, `../public`)));
 
 io.on("connection", async (socket) => {
-  console.log("a user connected");
+  console.log(`a user connected with connection : ${socket.id}`);
   // await insertData("connectionId", socket.id);
 
   //* Generate a new clientId
@@ -135,16 +136,38 @@ io.on("connection", async (socket) => {
         gameData: gameRes,
       },
     });
+
+    //Check to see if game can be started > broadcast bingoNo
+    const bingoNo = await updateGameStatus(gameId);
+    if (bingoNo) {
+      io.to(gameId).emit("ç", {
+        bingoNumber: bingoNo,
+      });
+
+      //Start the cron here
+    }
+  });
+
+  socket.on("NUMBER_SELECTED", async (data, callabck) => {
+    const { buttonText: number } = data;
+    console.log(`No selected by user : ${number}`);
+
+    //check if no is part of board or not
+
+    // check for row, col, digonals for bingo
+
+    callabck();
   });
 
   socket.on("disconnect", async () => {
     // const con = await getData("connectionId");
     // await deleteData("connectionId");
-    console.log(`user disconnected with id : ${"abc"}`);
+    console.log(`user disconnected with id : ${socket.id}`);
   });
 });
 
 server.listen(process.env.PORT, async () => {
+  // await insertColors(colors);
   console.log(`server running at http://localhost:${process.env.PORT}`);
 });
 
@@ -153,21 +176,26 @@ async function createGame(socket, clientId) {
     const gameId = uuidv4();
     const games = (await getHashData("games")) || {};
 
-    games[gameId] = JSON.stringify({
+    const gameObj = {
       clients: [clientId],
       state: "CREATED", // "CREATED", "ONGOING", "FINISHED"
       gameWins: {
         [clientId]: 0,
       },
       winner: null,
-    });
+    };
+
+    games[gameId] = JSON.stringify(gameObj);
     await insertData("games", games);
+
+    const userColor = colors[gameObj.clients.length - 1];
 
     socket.join(gameId);
 
     //Design gameBoard and return to user
     return {
       gameId,
+      userColor,
       gameBoard: gameBoards[0],
     };
   } catch (error) {
@@ -232,11 +260,37 @@ async function joinGame(socket, clientId, gameId) {
 
   await insertData("games", games);
 
+  const userColor = colors[gameDetails.clients.length - 1];
+
   socket.join(gameId);
 
   //Design gameBoard and return to user
   return {
     gameId,
+    userColor,
     gameBoard: gameBoards[1],
   };
+}
+
+async function updateGameStatus(gameId) {
+  const rawData = await getHashData("games", gameId);
+  const gameDetails = JSON.parse(rawData);
+
+  if (gameDetails.clients.length === 2 && gameDetails.state === "CREATED") {
+    // send a random number to client -> start the cron
+    const bingoNo = getRandomInt(1, 100);
+
+    const games = (await getHashData("games")) || {};
+    games[gameId] = JSON.stringify(gameDetails);
+
+    await insertData("games", games);
+
+    return bingoNo;
+  }
+
+  return null;
+}
+
+function getRandomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }

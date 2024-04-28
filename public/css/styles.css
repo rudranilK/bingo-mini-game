@@ -51,6 +51,10 @@
   grid-template-rows: repeat(5, 1fr); /* Define rows first */
   grid-template-columns: repeat(5, 1fr); /* Then define columns */
   gap: 10px;
+  /* justify-items: center; Center items horizontally */
+  /* margin: 0 auto; Center the grid container horizontally */
+  /* width: fit-content; Make the container width fit its contents */
+  /* max-width: 80%; Limit the maximum width to 80% of the viewport width */
 }
 
 .grid-item {
@@ -59,4 +63,31 @@
   border: 1px solid black; /* Border for each grid item */
   font-size: 16px;
   text-align: center; /* Center-align text */
+}
+
+/* Add styling for the new container */
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Add styling for the number display container */
+.number-display-container {
+  text-align: center;
+  margin-bottom: 20px; /* Add some space below the number display */
+}
+
+/* Adjust styling for the bingo number label */
+.number-display-container label {
+  font-size: 20px; /* Adjust font size as needed */
+  font-weight: bold; /* Make the label bold */
+  display: block; /* Ensure label is a block-level element */
+  margin-bottom: 10px; /* Add some space below the label */
+}
+
+/* Adjust styling for the bingo number display */
+#bingoNumberDisplay {
+  font-size: 24px; /* Adjust font size as needed */
+  margin-top: 10px; /* Add some space above the number display */
 }
