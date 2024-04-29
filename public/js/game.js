@@ -135,9 +135,14 @@ function displayGrid(data) {
                 return alert(err);
               }
 
-              if (data?.success) {
+              if (data?.message) {
                 //* Change background color of the button
                 button.style.backgroundColor = userColor;
+
+                //* Display bingo on UI
+                if (data.bingoPositions) {
+                  displayBingo(data.bingoPositions);
+                }
               }
             }
           );
@@ -184,4 +189,13 @@ function enableButtons() {
   buttons.forEach((button) => {
     button.disabled = false;
   });
+}
+
+function displayBingo(positions) {
+  positions.forEach((index) => {
+    const button = document.getElementById(`button-${index}`);
+    button.style.backgroundColor = "yellow";
+  });
+
+  alert("You Got A BINGO!!");
 }

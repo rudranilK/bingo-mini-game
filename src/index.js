@@ -209,7 +209,7 @@ io.on("connection", async (socket) => {
     //TODO: check for row, col, digonals for bingo
 
     callback({
-      data: null, //* Num is not the current bingo no, just acknowledge server received it
+      err: `Number selected id not the bingo number`,
     });
   });
 
@@ -268,28 +268,20 @@ async function joinGame(socket, clientId, gameId) {
     const rawData = await getHashData("games", gameId);
     const gameDetails = rawData ? JSON.parse(rawData) : null;
     if (!gameDetails) {
-      return {
-        err: "Invlid gameId",
-      };
+      throw new Error("Invlid gameId");
     }
 
     //* Validtions
     if (gameDetails.state === "FINISHED") {
-      return {
-        err: "Game has already finished",
-      };
+      throw new Error("Game has already finished");
     }
 
     if (gameDetails.clients?.length === 2) {
-      return {
-        err: "Maximum participants for a game reached!",
-      };
+      throw new Error("Maximum participants for a game reached!");
     }
 
     if (gameDetails.clients.find((c) => c === clientId)) {
-      return {
-        err: "Client is already part of the game!",
-      };
+      throw new Error("Client is already part of the game!");
     }
 
     //* Update Game Details & insert in redis
@@ -405,7 +397,7 @@ async function updateGameBoard(clientId, gameId, gameBoard) {
 
       mappedGameBoard[key] = JSON.stringify({
         value,
-        isMarked: false,
+        isMarked: value === 12 ? true : false,
       });
     }
 
@@ -418,23 +410,27 @@ async function updateGameBoard(clientId, gameId, gameBoard) {
 async function checkNumberExistsInBoard(gameId, clientId, bingoNo) {
   try {
     //* Fetch game Details from redis
-    const gameDetails = await getHashData(`${gameId}-${clientId}-board`);
-    if (!gameDetails) {
+    const gameBoardDetails = await getHashData(`${gameId}-${clientId}-board`);
+    if (!gameBoardDetails) {
       throw new Error(`Invalid game details`);
     }
 
-    for (let key in gameDetails) {
-      const details = JSON.parse(gameDetails[key]);
+    for (let key in gameBoardDetails) {
+      const details = JSON.parse(gameBoardDetails[key]);
 
       //* Check if bingoNo is present in the gameBoard
+
       if (details?.value === bingoNo) {
         //* Update the board details as that position is marked
+
         details.isMarked = true;
-        gameDetails[key] = JSON.stringify(details);
-        await insertData(`${gameId}-${clientId}-board`, gameDetails);
-        return {
-          success: `Bingo no clicked!!`,
-        };
+        gameBoardDetails[key] = JSON.stringify(details);
+        await insertData(`${gameId}-${clientId}-board`, gameBoardDetails);
+
+        //* Check if bingo is acheived
+        return await checkIfBingo(key, gameBoardDetails);
+
+        // return await checkIfBingo(key, gameId, clientId);
       }
     }
 
@@ -464,11 +460,79 @@ function sendBingo(io, gameId) {
   }, 6000);
 }
 
+async function checkIfBingo(position, gameBoard) {
+  try {
+    const positionsToCheck = [
+      [0, 6, 12, 18, 24], //* top-left to bottom-right diagonal
+      [4, 8, 12, 16, 20], //* bottom-right to top-left diagonal
+    ];
+
+    //*Find the indices for the row
+    positionsToCheck(findRowIndices(position));
+
+    //*Find the indices for the column
+    positionsToCheck(findColumnIndices(position));
+
+    //* Check if bingo is hit for any of these individual position arrays
+
+    // const gameBoard = await getHashData(`${gameId}-${clientId}-board`);
+    // if (!gameBoard) {
+    //   throw new Error(`Invalid clientId or gameId`);
+    // }
+
+    for (let group of positionsToCheck) {
+      const bingo = group.every((el) => {
+        const details = JSON.parse(gameBoard[el]);
+        if (details.isMarked) return true;
+
+        return false;
+      });
+
+      if (bingo) {
+        return {
+          message: "Bingo acheived",
+          bingoPositions: group, //* 'bingoPositions' is only sent when Bingo is acheived
+        };
+      }
+    }
+
+    //* For all the rows, columns and diagonls bingo was not acheived
+    return {
+      message: "Bingo not acheived",
+    };
+  } catch (error) {
+    return {
+      err: error.message || `500: Some unexpected error`,
+    };
+  }
+}
+
+function findRowIndices(position) {
+  const row = position % 5;
+
+  const indices = [];
+  [0, 1, 2, 3, 4].forEach((el) => indices.push(el * 5 + row));
+
+  return indices;
+}
+
+function findColumnIndices(position) {
+  const column = Math.floor(position / 5); //13 -> 10,11,12,13,14
+
+  const indices = [];
+  [0, 1, 2, 3, 4].forEach((el) => {
+    indices.push(5 * column + el);
+  });
+
+  return indices;
+}
+
 //* additionl function for testing - REMOVE later
 function testSpecific() {
   const values = [
-    ...Object.values(gameboards[0]),
-    ...Object.values(gameboards[1]),
+    // ...Object.values(gameboards[0]),
+    // ...Object.values(gameboards[1]),
+    14, 6, 3, 19, 17,
   ];
 
   const position = getRandomInt(0, values.length - 1);
