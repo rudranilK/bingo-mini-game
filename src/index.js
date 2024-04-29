@@ -177,20 +177,40 @@ io.on("connection", async (socket) => {
   //* Event listner for When a num is selected by client - Event
   socket.on("NUMBER_SELECTED", async (data, callback) => {
     const { buttonText: number, clientId, gameId } = data;
+
+    //* Validtion
+    if (!clientId || !gameId) {
+      return callback({
+        err: `clientId or gameId not provided`,
+      });
+    }
+
     console.log(`No selected by user : ${number}`);
 
-    //TODO: check if no is part of board or not
+    //* Check if no is the current bingo num
     if (parseInt(number) === currentBingoNo) {
-      callback({
-        data: {
-          success: "No is bingo no",
-        },
+      //* Check if num is part of board or not
+      const res = await checkNumberExistsInBoard(
+        gameId,
+        clientId,
+        currentBingoNo
+      );
+
+      //* If any error
+      if (res.err) {
+        return callback(res);
+      }
+
+      return callback({
+        data: res,
       });
     }
 
     //TODO: check for row, col, digonals for bingo
 
-    // callback();  //! Enable this after testing
+    callback({
+      data: null, //* Num is not the current bingo no, just acknowledge server received it
+    });
   });
 
   //* Event listner for disconnect event
@@ -395,8 +415,35 @@ async function updateGameBoard(clientId, gameId, gameBoard) {
   }
 }
 
-async function checkBingoNumber(gameId, clientId) {
-  //
+async function checkNumberExistsInBoard(gameId, clientId, bingoNo) {
+  try {
+    //* Fetch game Details from redis
+    const gameDetails = await getHashData(`${gameId}-${clientId}-board`);
+    if (!gameDetails) {
+      throw new Error(`Invalid game details`);
+    }
+
+    for (let key in gameDetails) {
+      const details = JSON.parse(gameDetails[key]);
+
+      //* Check if bingoNo is present in the gameBoard
+      if (details?.value === bingoNo) {
+        //* Update the board details as that position is marked
+        details.isMarked = true;
+        gameDetails[key] = JSON.stringify(details);
+        await insertData(`${gameId}-${clientId}-board`, gameDetails);
+        return {
+          success: `Bingo no clicked!!`,
+        };
+      }
+    }
+
+    //* If not a bingo num - fn returns undefined
+  } catch (error) {
+    return {
+      err: error.message || `500: Some unexpected error`,
+    };
+  }
 }
 
 function sendBingo(io, gameId) {

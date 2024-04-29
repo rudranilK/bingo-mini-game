@@ -125,19 +125,22 @@ function displayGrid(data) {
           // Emit an event to the server with the button text content
           const buttonText = button.textContent.trim(); // Get the text content of the button
 
-          socket.emit("NUMBER_SELECTED", { buttonText }, ({ err, data }) => {
-            // Wait for acknowledgment from the server
-            if (err) {
-              console.log(JSON.stringify(err, null, 2));
-              return alert(err);
-            }
+          socket.emit(
+            "NUMBER_SELECTED",
+            { buttonText, clientId, gameId },
+            ({ err, data }) => {
+              //* Wait for acknowledgment from the server
+              if (err) {
+                console.log(JSON.stringify(err, null, 2));
+                return alert(err);
+              }
 
-            const { success } = data;
-            if (success) {
-              // Change background color of the button
-              button.style.backgroundColor = userColor;
+              if (data?.success) {
+                //* Change background color of the button
+                button.style.backgroundColor = userColor;
+              }
             }
-          });
+          );
         });
       }
 
