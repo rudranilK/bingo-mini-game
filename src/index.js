@@ -22,7 +22,7 @@ const gameboards = [
     9: 40,
     10: 55,
     11: 43,
-    12: 58,
+    12: null,
     13: 59,
     14: 54,
     15: 78,
@@ -49,7 +49,7 @@ const gameboards = [
     9: 38,
     10: 46,
     11: 51,
-    12: 55,
+    12: null,
     13: 60,
     14: 53,
     15: 74,
@@ -113,10 +113,7 @@ io.on("connection", async (socket) => {
 
     //* Store gameboard for this user in Redis
     if (gameRes.gameId && gameRes.gameBoard) {
-      await insertData(
-        `${gameRes.gameId}-${clientId}-board`,
-        gameRes.gameBoard
-      );
+      await updateGameBoard(clientId, gameRes.gameId, gameRes.gameBoard);
     }
 
     console.log(`A user created game ${gameRes.gameId}`);
@@ -145,10 +142,7 @@ io.on("connection", async (socket) => {
 
     //* Store gameboard for this user in Redis
     if (gameRes.gameId && gameRes.gameBoard) {
-      await insertData(
-        `${gameRes.gameId}-${clientId}-board`,
-        gameRes.gameBoard
-      );
+      await updateGameBoard(clientId, gameRes.gameId, gameRes.gameBoard);
     }
 
     console.log(`A user joined game ${gameId}`);
@@ -265,9 +259,7 @@ async function joinGame(socket, clientId, gameId) {
   }
 
   gameDetails.clients?.push(clientId);
-  gameDetails.gameWins.clientId = 0;
-
-  //If clients = 2, start the game and emit an event - return something
+  gameDetails.gameWins[clientId] = 0;
 
   const games = (await getHashData("games")) || {};
   games[gameId] = JSON.stringify(gameDetails);
@@ -355,6 +347,31 @@ function designGameBoard() {
   }
 
   return gameBoard;
+}
+
+async function updateGameBoard(clientId, gameId, gameBoard) {
+  try {
+    //Create  deep copy of the gameBoard
+    const mappedGameBoard = structuredClone(gameBoard);
+
+    // Add isMarked field for every no on  the board
+    for (let key in mappedGameBoard) {
+      const value = mappedGameBoard[key];
+
+      mappedGameBoard[key] = JSON.stringify({
+        value,
+        isMarked: false,
+      });
+    }
+
+    await insertData(`${gameId}-${clientId}-board`, mappedGameBoard);
+  } catch (error) {
+    console.error(`Èrror occured: ${error.message}`);
+  }
+}
+
+async function checkBingoNumber(gameId, clientId) {
+  //
 }
 
 function sendBingo(io, gameId) {
