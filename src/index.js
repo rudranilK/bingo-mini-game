@@ -7,7 +7,7 @@ import { Server } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import { insertData, getHashData } from "./utils/db.js";
 
-//! Temporry
+//! Temporary
 const gameboards = [
   {
     0: 14,
@@ -79,7 +79,6 @@ app.use(express.static(join(__dirname, `../public`)));
 
 io.on("connection", async (socket) => {
   console.log(`a user connected with connection : ${socket.id}`);
-  // await insertData("connectionId", socket.id);
 
   //* Generate a new clientId
   const clientId = uuidv4();
@@ -89,14 +88,16 @@ io.on("connection", async (socket) => {
     connectionId: socket.id,
   });
 
-  //Insert new client details in redis
+  //* Insert new client details in redis
   await insertData("clients", clients);
 
   const connectionPayload = {
     clientId: clientId,
   };
+  //* Return the clientId to UI on making a successful connection
   socket.emit("CONNECTION_ACK", JSON.stringify(connectionPayload));
 
+  //* Event listner for Crete game Event
   socket.on("CREATE_GAME", async (data, callback) => {
     const { clientId, username } = data;
 
@@ -126,6 +127,7 @@ io.on("connection", async (socket) => {
     });
   });
 
+  //* Event listner for Join game Event
   socket.on("JOIN_GAME", async (data, callback) => {
     const { clientId, username, gamename: gameId } = data;
 
@@ -154,13 +156,17 @@ io.on("connection", async (socket) => {
       },
     });
 
-    //Check to see if game can be started > broadcast bingoNo
+    //* Automated start game > Check to see if game can be started > broadcast bingoNo
     currentBingoNo = await updateGameStarted(gameId);
+
+    //* If we have a bingoNo do the following
     if (currentBingoNo) {
+      //* Broadcast the bingo No to all the clients of this room
       io.to(gameId).emit("BINGO_NUMBER", {
         bingoNumber: currentBingoNo,
       });
 
+      //* Send consequtive bingo No's after an interval
       //TODO: Start the cron here
       setTimeout(() => {
         sendBingo(io, gameId);
@@ -168,6 +174,7 @@ io.on("connection", async (socket) => {
     }
   });
 
+  //* Event listner for When a num is selected by client - Event
   socket.on("NUMBER_SELECTED", async (data, callback) => {
     const { buttonText: number, clientId, gameId } = data;
     console.log(`No selected by user : ${number}`);
@@ -186,6 +193,7 @@ io.on("connection", async (socket) => {
     // callback();  //! Enable this after testing
   });
 
+  //* Event listner for disconnect event
   socket.on("disconnect", async () => {
     console.log(`user disconnected with id : ${socket.id}`);
   });
@@ -201,6 +209,7 @@ async function createGame(socket, clientId) {
     const gameId = uuidv4();
     const games = (await getHashData("games")) || {};
 
+    //* Create Game Details
     const gameObj = {
       clients: [clientId],
       state: "CREATED", // "CREATED", "ONGOING", "FINISHED"
@@ -210,14 +219,17 @@ async function createGame(socket, clientId) {
       winner: null,
     };
 
+    //* Insert Game Detils
     games[gameId] = JSON.stringify(gameObj);
     await insertData("games", games);
 
+    //* Assign a color to user
     const userColor = colors[gameObj.clients.length - 1];
 
+    //* Join the client to this game room
     socket.join(gameId);
 
-    //Design gameBoard and return to user
+    //* Design gameBoard and return to user
     return {
       gameId,
       userColor,
@@ -232,51 +244,61 @@ async function createGame(socket, clientId) {
 }
 
 async function joinGame(socket, clientId, gameId) {
-  const rawData = await getHashData("games", gameId);
-  const gameDetails = rawData ? JSON.parse(rawData) : null;
-  if (!gameDetails) {
+  try {
+    const rawData = await getHashData("games", gameId);
+    const gameDetails = rawData ? JSON.parse(rawData) : null;
+    if (!gameDetails) {
+      return {
+        err: "Invlid gameId",
+      };
+    }
+
+    //* Validtions
+    if (gameDetails.state === "FINISHED") {
+      return {
+        err: "Game has already finished",
+      };
+    }
+
+    if (gameDetails.clients?.length === 2) {
+      return {
+        err: "Maximum participants for a game reached!",
+      };
+    }
+
+    if (gameDetails.clients.find((c) => c === clientId)) {
+      return {
+        err: "Client is already part of the game!",
+      };
+    }
+
+    //* Update Game Details & insert in redis
+    gameDetails.clients?.push(clientId);
+    gameDetails.gameWins[clientId] = 0;
+
+    const games = (await getHashData("games")) || {};
+    games[gameId] = JSON.stringify(gameDetails);
+
+    await insertData("games", games);
+
+    //* Assign a color to user
+    const userColor = colors[gameDetails.clients.length - 1];
+
+    //* Join the client to this game room
+    socket.join(gameId);
+
+    //* Design gameBoard and return to user
     return {
-      err: "Invlid gameId",
+      gameId,
+      userColor,
+      // gameBoard: designGameBoard(), //* Uncomment this
+      gameBoard: gameboards[1], //! Remove this after testing
+    };
+  } catch (error) {
+    return {
+      err: error.message || `500: Some unexpected error`,
     };
   }
-
-  if (gameDetails.state === "FINISHED") {
-    return {
-      err: "Game has already finished",
-    };
-  }
-
-  if (gameDetails.clients?.length === 2) {
-    return {
-      err: "Maximum participants for a game reached!",
-    };
-  }
-
-  if (gameDetails.clients.find((c) => c === clientId)) {
-    return {
-      err: "Client is already part of the game!",
-    };
-  }
-
-  gameDetails.clients?.push(clientId);
-  gameDetails.gameWins[clientId] = 0;
-
-  const games = (await getHashData("games")) || {};
-  games[gameId] = JSON.stringify(gameDetails);
-
-  await insertData("games", games);
-
-  const userColor = colors[gameDetails.clients.length - 1];
-
-  socket.join(gameId);
-
-  //Design gameBoard and return to user
-  return {
-    gameId,
-    userColor,
-    // gameBoard: designGameBoard(), //* Uncomment this
-    gameBoard: gameboards[1], //! Remove this after testing
-  };
 }
 
 async function updateUserName(clientId, username) {
@@ -288,6 +310,7 @@ async function updateUserName(clientId, username) {
     };
   }
 
+  //* Update & insert the username for the clientId
   const clients = (await getHashData("clients")) || {};
 
   clientDetails.username = username;
@@ -302,10 +325,11 @@ async function updateGameStarted(gameId) {
   const gameDetails = JSON.parse(rawData);
 
   if (gameDetails.clients.length === 2 && gameDetails.state === "CREATED") {
-    // send a random Bingo number to client
+    //* Send a random Bingo number to client
     // const bingoNo = getRandomInt(1, 100);  //* Uncomment this
     const bingoNo = testSpecific(); //! Remove this after testing
 
+    //* Update the game state to started
     const games = (await getHashData("games")) || {};
     gameDetails.state = "ONGOING";
     games[gameId] = JSON.stringify(gameDetails);
@@ -315,6 +339,7 @@ async function updateGameStarted(gameId) {
     return bingoNo;
   }
 
+  //* If not a perfect condition - return nothing
   return null;
 }
 
@@ -351,10 +376,10 @@ function designGameBoard() {
 
 async function updateGameBoard(clientId, gameId, gameBoard) {
   try {
-    //Create  deep copy of the gameBoard
+    //* Create  deep copy of the gameBoard
     const mappedGameBoard = structuredClone(gameBoard);
 
-    // Add isMarked field for every no on  the board
+    //* Add isMarked field for every num on the board
     for (let key in mappedGameBoard) {
       const value = mappedGameBoard[key];
 
@@ -375,11 +400,14 @@ async function checkBingoNumber(gameId, clientId) {
 }
 
 function sendBingo(io, gameId) {
+  //* Generate a new Bingo num
   // currentBingoNo = getRandomInt(1, 100); //* Uncomment this
 
   currentBingoNo = testSpecific(); //! Remove after testing
 
   console.log("sending new bingoNo..", currentBingoNo);
+
+  //* broadcast the bingo num to all clients in the game room
   io.to(gameId).emit("BINGO_NUMBER", {
     bingoNumber: currentBingoNo,
   });
@@ -389,6 +417,7 @@ function sendBingo(io, gameId) {
   }, 6000);
 }
 
+//* additionl function for testing - REMOVE later
 function testSpecific() {
   const values = [
     ...Object.values(gameboards[0]),
