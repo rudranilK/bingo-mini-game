@@ -25,7 +25,6 @@ socket.on("GAME_END", (data) => {
   setTimeout(() => {
     alert(`${winner} got 2 bingo's!! Game ends here!`);
 
-    // socket.emit("disconnect");
     location.href = "/"; // Re-route to index.html
   }, 2000);
 });
