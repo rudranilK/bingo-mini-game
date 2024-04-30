@@ -28,18 +28,18 @@ function performAction(username, gamename) {
       { clientId, username, gamename },
       ({ err, data }) => {
         if (err) {
+          console.error(err);
           alert(err);
           location.href = "/"; // Re-route to index.html
-          console.error(err);
         } else {
-          console.info(`data, ${JSON.stringify(data, null, 2)}`);
+          //   console.info(`data, ${JSON.stringify(data, null, 2)}`);
           const { clientDetails, gameData } = data;
           const { gameBoard: board, gameId: id, userColor: color } = gameData;
           gameId = id;
           userColor = color;
           gameBoard = board;
 
-          displayGrid(gameBoard);
+          displayGrid(gameId, gameBoard);
         }
       }
     );
@@ -51,20 +51,20 @@ function performAction(username, gamename) {
         location.href = "/"; // Re-route to index.html
         console.error(err);
       } else {
-        console.info(`data, ${JSON.stringify(data, null, 2)}`);
+        // console.info(`data, ${JSON.stringify(data, null, 2)}`);
         const { clientDetails, gameData } = data;
         const { gameBoard: board, gameId: id, userColor: color } = gameData;
         gameId = id;
         userColor = color;
         gameBoard = board;
 
-        displayGrid(gameBoard);
+        displayGrid(gameId, gameBoard);
       }
     });
   }
 }
 
-function displayGrid(data) {
+function displayGrid(gameId, data) {
   // Remove the landing page content
   const landingPage = document.getElementById("landingPage");
   landingPage.innerHTML = "";
@@ -72,6 +72,12 @@ function displayGrid(data) {
   // Create the container for number display and grid
   const container = document.createElement("div");
   container.classList.add("container");
+
+  // Create container for game ID display and center it
+  const gameIdContainer = document.createElement("div");
+  gameIdContainer.className = "game-id-container"; // Add CSS class
+  gameIdContainer.textContent = `Game ID: ${gameId}`;
+  container.appendChild(gameIdContainer);
 
   // Create container for bingo number display and center it
   const numberDisplayContainer = document.createElement("div");
