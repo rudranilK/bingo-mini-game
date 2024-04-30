@@ -64,6 +64,7 @@ const gameboards = [
     24: 87,
   },
 ];
+const picked = [];
 //! remove after testing
 
 const colors = ["green", "blue"];
@@ -197,20 +198,20 @@ io.on("connection", async (socket) => {
       );
 
       //* If any error
-      if (res.err) {
+      if (res?.err) {
         return callback(res);
       }
 
-      return callback({
+      callback({
         data: res,
       });
+
+      //TODO: Check if there is a bingo, then trigger another fun to check if there re 2 bingo's
+    } else {
+      callback({
+        err: `Number selected is not the bingo number`,
+      });
     }
-
-    //TODO: check for row, col, digonals for bingo
-
-    callback({
-      err: `Number selected id not the bingo number`,
-    });
   });
 
   //* Event listner for disconnect event
@@ -397,7 +398,8 @@ async function updateGameBoard(clientId, gameId, gameBoard) {
 
       mappedGameBoard[key] = JSON.stringify({
         value,
-        isMarked: value === 12 ? true : false,
+        //* Mark the center tile as marked true always
+        isMarked: parseInt(key) === 12 ? true : false,
       });
     }
 
@@ -428,9 +430,7 @@ async function checkNumberExistsInBoard(gameId, clientId, bingoNo) {
         await insertData(`${gameId}-${clientId}-board`, gameBoardDetails);
 
         //* Check if bingo is acheived
-        return await checkIfBingo(key, gameBoardDetails);
-
-        // return await checkIfBingo(key, gameId, clientId);
+        return await checkIfBingo(key, gameId, clientId);
       }
     }
 
@@ -460,7 +460,7 @@ function sendBingo(io, gameId) {
   }, 6000);
 }
 
-async function checkIfBingo(position, gameBoard) {
+async function checkIfBingo(position, gameId, clientId) {
   try {
     const positionsToCheck = [
       [0, 6, 12, 18, 24], //* top-left to bottom-right diagonal
@@ -468,17 +468,17 @@ async function checkIfBingo(position, gameBoard) {
     ];
 
     //*Find the indices for the row
-    positionsToCheck(findRowIndices(position));
+    positionsToCheck.push(findRowIndices(position));
 
     //*Find the indices for the column
-    positionsToCheck(findColumnIndices(position));
+    positionsToCheck.push(findColumnIndices(position));
 
     //* Check if bingo is hit for any of these individual position arrays
 
-    // const gameBoard = await getHashData(`${gameId}-${clientId}-board`);
-    // if (!gameBoard) {
-    //   throw new Error(`Invalid clientId or gameId`);
-    // }
+    const gameBoard = await getHashData(`${gameId}-${clientId}-board`);
+    if (!gameBoard) {
+      throw new Error(`Invalid clientId or gameId`);
+    }
 
     for (let group of positionsToCheck) {
       const bingo = group.every((el) => {
@@ -488,7 +488,11 @@ async function checkIfBingo(position, gameBoard) {
         return false;
       });
 
+      //* Bingo acheived
       if (bingo) {
+        //* Update game scores in Redis
+        await updateGameStatus(gameId, clientId);
+
         return {
           message: "Bingo acheived",
           bingoPositions: group, //* 'bingoPositions' is only sent when Bingo is acheived
@@ -527,14 +531,54 @@ function findColumnIndices(position) {
   return indices;
 }
 
+async function updateGameStatus(gameId, clientId) {
+  //* Find out the particular game details
+  const rawData = await getHashData("games", gameId);
+  const gameDetails = rawData ? JSON.parse(rawData) : null;
+
+  //*Validtions
+  if (!gameDetails) {
+    throw new Error("Invlid gameId");
+  }
+
+  if (!gameDetails.clients.includes(clientId)) {
+    throw new Error("Invlid clientId");
+  }
+
+  //* Update the stats
+  gameDetails.gameWins[clientId] += 1;
+
+  //* Update games Map
+  const games = (await getHashData("games")) || {};
+  games[gameId] = JSON.stringify(gameDetails);
+
+  await insertData("games", games);
+}
+
 //* additionl function for testing - REMOVE later
 function testSpecific() {
   const values = [
     // ...Object.values(gameboards[0]),
     // ...Object.values(gameboards[1]),
-    14, 6, 3, 19, 17,
+    // 14, 6, 3, 19, 17,    //// 1st Column
+    // 14, 30, 55, 78, 89,  //// 1st Row
+    // 14, 21, 64, 83,      //// 1st Diagonal
+    17, 35, 82, 89,
   ];
 
-  const position = getRandomInt(0, values.length - 1);
+  if (picked.length === values.length) {
+    picked.splice(0, picked.length);
+  }
+
+  let position = getRandomInt(0, values.length - 1);
+  while (true) {
+    if (!picked.includes(position)) {
+      picked.push(position);
+      break;
+    }
+
+    position = getRandomInt(0, values.length - 1);
+  }
+
   return values[position];
 }

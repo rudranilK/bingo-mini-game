@@ -141,7 +141,10 @@ function displayGrid(data) {
 
                 //* Display bingo on UI
                 if (data.bingoPositions) {
-                  displayBingo(data.bingoPositions);
+                  //* Add a delay here, So the color change is rendered
+                  setTimeout(() => {
+                    displayBingo(data.bingoPositions);
+                  }, 500);
                 }
               }
             }
@@ -197,5 +200,8 @@ function displayBingo(positions) {
     button.style.backgroundColor = "yellow";
   });
 
-  alert("You Got A BINGO!!");
+  //* A delay so Ui can render the changes
+  setTimeout(() => {
+    alert("You Got A BINGO!!");
+  }, 500);
 }
