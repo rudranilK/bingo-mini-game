@@ -6,6 +6,7 @@ import { dirname, join } from "path";
 import { Server } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import { insertData, getHashData } from "./utils/db.js";
+import _ from "lodash";
 
 //! Temporary
 const gameboards = [
@@ -132,7 +133,7 @@ io.on("connection", async (socket) => {
   socket.on("JOIN_GAME", async (data, callback) => {
     const { clientId, username, gamename: gameId } = data;
 
-    //Iterate through clients & validate
+    //* Iterate through clients & validate
     const res = await updateUserName(clientId, username);
     if (res.err) {
       return callback(res);
@@ -169,9 +170,9 @@ io.on("connection", async (socket) => {
 
       //* Send consequtive bingo No's after an interval
       //TODO: Start the cron here
-      setTimeout(() => {
-        sendBingo(io, gameId);
-      }, 6000);
+      setTimeout(async () => {
+        await sendBingo(io, gameId);
+      }, 5000);
     }
   });
 
@@ -186,7 +187,28 @@ io.on("connection", async (socket) => {
       });
     }
 
-    console.log(`No selected by user : ${number}`);
+    //* check if client is valid & part of the game & game is ONGOING
+    const rawGameData = await getHashData("games", gameId);
+    const gameDetails = rawGameData ? JSON.parse(rawGameData) : null;
+    if (!gameDetails) {
+      return callback({
+        err: `Invlid gameId`,
+      });
+    }
+
+    if (!gameDetails.state === "ONGOING") {
+      return callback({
+        err: "Game is not active!!",
+      });
+    }
+
+    if (!gameDetails.clients.find((c) => c === clientId)) {
+      return callback({
+        err: "Client is not part of this game!",
+      });
+    }
+
+    console.log(`Num selected by user : ${number}`);
 
     //* Check if no is the current bingo num
     if (parseInt(number) === currentBingoNo) {
@@ -202,11 +224,19 @@ io.on("connection", async (socket) => {
         return callback(res);
       }
 
+      //* If there is a bingo positions will be returned with this ack only
       callback({
         data: res,
       });
 
-      //TODO: Check if there is a bingo, then trigger another fun to check if there re 2 bingo's
+      //* Check if there is a bingo acheived
+      if (res?.bingoPositions) {
+        //* Trigger another fun to check if there are 2 bingo's & emit event
+        const winnerDetails = await checkGameWin(gameId, clientId);
+        if (winnerDetails) {
+          io.to(gameId).emit("GAME_END", winnerDetails);
+        }
+      }
     } else {
       callback({
         err: `Number selected is not the bingo number`,
@@ -234,8 +264,11 @@ async function createGame(socket, clientId) {
     const gameObj = {
       clients: [clientId],
       state: "CREATED", // "CREATED", "ONGOING", "FINISHED"
-      gameWins: {
-        [clientId]: 0,
+      stats: {
+        [clientId]: JSON.stringify({
+          wins: 0,
+          bingoPositions: [],
+        }),
       },
       winner: null,
     };
@@ -287,7 +320,10 @@ async function joinGame(socket, clientId, gameId) {
 
     //* Update Game Details & insert in redis
     gameDetails.clients?.push(clientId);
-    gameDetails.gameWins[clientId] = 0;
+    gameDetails.stats[clientId] = JSON.stringify({
+      wins: 0,
+      bingoPositions: [],
+    });
 
     const games = (await getHashData("games")) || {};
     games[gameId] = JSON.stringify(gameDetails);
@@ -442,7 +478,14 @@ async function checkNumberExistsInBoard(gameId, clientId, bingoNo) {
   }
 }
 
-function sendBingo(io, gameId) {
+async function sendBingo(io, gameId) {
+  //* Check if game has ended
+  const rawData = await getHashData("games", gameId);
+  const gameDetails = rawData ? JSON.parse(rawData) : null;
+  if (gameDetails.state === "FINISHED") return;
+
+  //* Continue as game is ongoing...
+
   //* Generate a new Bingo num
   // currentBingoNo = getRandomInt(1, 100); //* Uncomment this
 
@@ -455,9 +498,9 @@ function sendBingo(io, gameId) {
     bingoNumber: currentBingoNo,
   });
 
-  setTimeout(() => {
-    sendBingo(io, gameId);
-  }, 6000);
+  setTimeout(async () => {
+    await sendBingo(io, gameId);
+  }, 5000);
 }
 
 async function checkIfBingo(position, gameId, clientId) {
@@ -473,6 +516,13 @@ async function checkIfBingo(position, gameId, clientId) {
     //*Find the indices for the column
     positionsToCheck.push(findColumnIndices(position));
 
+    //*Check if there are other bingo's for this client
+    const rawData = await getHashData("games", gameId);
+    const gameDetails = rawData ? JSON.parse(rawData) : null;
+    const existingBingos = JSON.parse(
+      gameDetails.stats[clientId]
+    )?.bingoPositions;
+
     //* Check if bingo is hit for any of these individual position arrays
 
     const gameBoard = await getHashData(`${gameId}-${clientId}-board`);
@@ -481,6 +531,16 @@ async function checkIfBingo(position, gameId, clientId) {
     }
 
     for (let group of positionsToCheck) {
+      //* Check if this group is same as existingBingos
+
+      if (existingBingos.length) {
+        const sortedGroup = _.sortBy(group);
+        const sortedBingos = _.sortBy(existingBingos);
+        if (_.isEqual(sortedGroup, sortedBingos)) {
+          continue; //* Skip this group
+        }
+      }
+
       const bingo = group.every((el) => {
         const details = JSON.parse(gameBoard[el]);
         if (details.isMarked) return true;
@@ -491,7 +551,7 @@ async function checkIfBingo(position, gameId, clientId) {
       //* Bingo acheived
       if (bingo) {
         //* Update game scores in Redis
-        await updateGameStatus(gameId, clientId);
+        await updateGameStatus(gameId, clientId, group);
 
         return {
           message: "Bingo acheived",
@@ -531,7 +591,7 @@ function findColumnIndices(position) {
   return indices;
 }
 
-async function updateGameStatus(gameId, clientId) {
+async function updateGameStatus(gameId, clientId, bingoPositions) {
   //* Find out the particular game details
   const rawData = await getHashData("games", gameId);
   const gameDetails = rawData ? JSON.parse(rawData) : null;
@@ -546,7 +606,10 @@ async function updateGameStatus(gameId, clientId) {
   }
 
   //* Update the stats
-  gameDetails.gameWins[clientId] += 1;
+  const gameStats = JSON.parse(gameDetails.stats[clientId]);
+  gameStats.wins += 1;
+  gameStats.bingoPositions.push(bingoPositions);
+  gameDetails.stats[clientId] = JSON.stringify(gameStats);
 
   //* Update games Map
   const games = (await getHashData("games")) || {};
@@ -555,15 +618,49 @@ async function updateGameStatus(gameId, clientId) {
   await insertData("games", games);
 }
 
+async function checkGameWin(gameId, clientId) {
+  //* Find out the particular game details
+  const rawData = await getHashData("games", gameId);
+  const gameDetails = rawData ? JSON.parse(rawData) : null;
+
+  const gameStats = JSON.parse(gameDetails.stats[clientId]);
+
+  if (gameStats.wins === 2) {
+    gameDetails.state = "FINISHED";
+    gameDetails.winner = clientId;
+
+    //* Update games Map
+    const games = (await getHashData("games")) || {};
+    games[gameId] = JSON.stringify(gameDetails);
+    await insertData("games", games);
+
+    //* Fetch client Details
+    const rawClientData = await getHashData("clients", clientId);
+    const clientDetails = rawClientData ? JSON.parse(rawClientData) : null;
+
+    //* Return winner's username
+    return {
+      winner: clientDetails.username,
+    };
+  }
+}
+
 //* additionl function for testing - REMOVE later
 function testSpecific() {
   const values = [
     // ...Object.values(gameboards[0]),
     // ...Object.values(gameboards[1]),
     // 14, 6, 3, 19, 17,    //// 1st Column
-    // 14, 30, 55, 78, 89,  //// 1st Row
+    14,
+    30,
+    55,
+    78,
+    89, //// 1st Row
     // 14, 21, 64, 83,      //// 1st Diagonal
-    17, 35, 82, 89,
+    17,
+    35,
+    82,
+    89,
   ];
 
   if (picked.length === values.length) {

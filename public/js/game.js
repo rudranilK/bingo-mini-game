@@ -19,6 +19,17 @@ socket.on("BINGO_NUMBER", (data) => {
   enableButtons();
 });
 
+socket.on("GAME_END", (data) => {
+  const { winner } = data;
+
+  setTimeout(() => {
+    alert(`${winner} got 2 bingo's!! Game ends here!`);
+
+    // socket.emit("disconnect");
+    location.href = "/"; // Re-route to index.html
+  }, 2000);
+});
+
 // Emit event when user submits the form
 function performAction(username, gamename) {
   if (username && gamename) {
@@ -147,10 +158,11 @@ function displayGrid(gameId, data) {
 
                 //* Display bingo on UI
                 if (data.bingoPositions) {
+                  console.info(JSON.stringify(data.bingoPositions, null, 2));
                   //* Add a delay here, So the color change is rendered
                   setTimeout(() => {
                     displayBingo(data.bingoPositions);
-                  }, 500);
+                  }, 300);
                 }
               }
             }
@@ -209,5 +221,5 @@ function displayBingo(positions) {
   //* A delay so Ui can render the changes
   setTimeout(() => {
     alert("You Got A BINGO!!");
-  }, 500);
+  }, 300);
 }
