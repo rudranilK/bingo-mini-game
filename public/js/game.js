@@ -22,6 +22,8 @@ socket.on("BINGO_NUMBER", (data) => {
 socket.on("GAME_END", (data) => {
   const { winner } = data;
 
+  console.log(`${winner} got 2 bingo's!!`);
+
   setTimeout(() => {
     alert(`${winner} got 2 bingo's!! Game ends here!`);
 

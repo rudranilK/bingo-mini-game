@@ -66,6 +66,7 @@ const gameboards = [
   },
 ];
 const picked = [];
+// const values = [14, 30, 55, 78, 89, 17, 35, 82, 89];
 //! remove after testing
 
 const colors = ["green", "blue"];
@@ -99,7 +100,7 @@ io.on("connection", async (socket) => {
   //* Return the clientId to UI on making a successful connection
   socket.emit("CONNECTION_ACK", JSON.stringify(connectionPayload));
 
-  //* Event listner for Crete game Event
+  //* Event listner for Create game Event
   socket.on("CREATE_GAME", async (data, callback) => {
     const { clientId, username } = data;
 
@@ -187,6 +188,8 @@ io.on("connection", async (socket) => {
       });
     }
 
+    //! Start a redlock session id: gameId
+
     //* check if client is valid & part of the game & game is ONGOING
     const rawGameData = await getHashData("games", gameId);
     const gameDetails = rawGameData ? JSON.parse(rawGameData) : null;
@@ -224,6 +227,8 @@ io.on("connection", async (socket) => {
         return callback(res);
       }
 
+      //! End a redlock session id: gameId
+
       //* If there is a bingo positions will be returned with this ack only
       callback({
         data: res,
@@ -238,6 +243,8 @@ io.on("connection", async (socket) => {
         }
       }
     } else {
+      //! End a redlock session id: gameId
+
       callback({
         err: `Number selected is not the bingo number`,
       });
@@ -505,6 +512,7 @@ async function sendBingo(io, gameId) {
 
 async function checkIfBingo(position, gameId, clientId) {
   try {
+    //! Create Lock with id : gameId
     const positionsToCheck = [
       [0, 6, 12, 18, 24], //* top-left to bottom-right diagonal
       [4, 8, 12, 16, 20], //* bottom-right to top-left diagonal
@@ -535,8 +543,13 @@ async function checkIfBingo(position, gameId, clientId) {
 
       if (existingBingos.length) {
         const sortedGroup = _.sortBy(group);
-        const sortedBingos = _.sortBy(existingBingos);
-        if (_.isEqual(sortedGroup, sortedBingos)) {
+
+        const alreadyExists = existingBingos.find((positions) => {
+          const sortedBingoPositions = _.sortBy(positions);
+          return _.isEqual(sortedGroup, sortedBingoPositions);
+        });
+
+        if (alreadyExists) {
           continue; //* Skip this group
         }
       }
@@ -568,6 +581,8 @@ async function checkIfBingo(position, gameId, clientId) {
     return {
       err: error.message || `500: Some unexpected error`,
     };
+  } finally {
+    //! Relese redlock id: gameId
   }
 }
 
@@ -678,4 +693,5 @@ function testSpecific() {
   }
 
   return values[position];
+  // return values.shift();
 }
