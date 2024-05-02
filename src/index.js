@@ -7,6 +7,7 @@ import { Server } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import { insertData, getHashData } from "./utils/db.js";
 import _ from "lodash";
+import cron from "node-cron";
 
 //! Temporary
 const gameboards = [
@@ -71,6 +72,12 @@ const picked = [];
 
 const colors = ["green", "blue"];
 let currentBingoNo = null;
+let cronTask;
+
+if (!process.env.CRON_SCHEDULE || !process.env.PORT) {
+  console.error(`CRON_SCHEDULE or PORT not defined`);
+  process.exit(-1);
+}
 
 const app = express();
 const server = createServer(app);
@@ -169,11 +176,9 @@ io.on("connection", async (socket) => {
         bingoNumber: currentBingoNo,
       });
 
-      //* Send consequtive bingo No's after an interval
-      //TODO: Start the cron here
-      setTimeout(async () => {
-        await sendBingo(io, gameId);
-      }, 5000);
+      //* Send consequtive bingo No's after an interval > Start the cron here
+      cronTask = deployCron(io, gameId);
+      cronTask.start();
     }
   });
 
@@ -240,6 +245,12 @@ io.on("connection", async (socket) => {
         const winnerDetails = await checkGameWin(gameId, clientId);
         if (winnerDetails) {
           io.to(gameId).emit("GAME_END", winnerDetails);
+
+          //* Stop the cron now
+          console.info("Stopping cron job for this Game");
+          if (cronTask) {
+            cronTask.stop();
+          }
         }
       }
     } else {
@@ -485,14 +496,7 @@ async function checkNumberExistsInBoard(gameId, clientId, bingoNo) {
   }
 }
 
-async function sendBingo(io, gameId) {
-  //* Check if game has ended
-  const rawData = await getHashData("games", gameId);
-  const gameDetails = rawData ? JSON.parse(rawData) : null;
-  if (gameDetails.state === "FINISHED") return;
-
-  //* Continue as game is ongoing...
-
+function sendBingo(io, gameId) {
   //* Generate a new Bingo num
   // currentBingoNo = getRandomInt(1, 100); //* Uncomment this
 
@@ -504,10 +508,6 @@ async function sendBingo(io, gameId) {
   io.to(gameId).emit("BINGO_NUMBER", {
     bingoNumber: currentBingoNo,
   });
-
-  setTimeout(async () => {
-    await sendBingo(io, gameId);
-  }, 5000);
 }
 
 async function checkIfBingo(position, gameId, clientId) {
@@ -658,6 +658,13 @@ async function checkGameWin(gameId, clientId) {
       winner: clientDetails.username,
     };
   }
+}
+
+function deployCron(io, gameId) {
+  console.log("Cron task added");
+  return cron.schedule(process.env.CRON_SCHEDULE, () => {
+    sendBingo(io, gameId);
+  });
 }
 
 //* additionl function for testing - REMOVE later
